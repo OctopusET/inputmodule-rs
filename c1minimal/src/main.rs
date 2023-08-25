@@ -12,6 +12,7 @@ use bsp::entry;
 use cortex_m::delay::Delay;
 use defmt_rtt as _;
 use embedded_hal::digital::v2::InputPin;
+use embedded_hal::digital::v2::OutputPin;
 
 use rp2040_hal::gpio::bank0::Gpio12;
 use rp2040_hal::pio::PIOExt;
@@ -137,6 +138,8 @@ fn main() -> ! {
         timer.count_down(),
     );
 
+    let mut neopixel_power = pins.d11.into_push_pull_output();
+    neopixel_power.set_high().unwrap();
     ws2812
         .write(smart_leds::brightness(
             [state.color].iter().cloned(),
