@@ -13,7 +13,7 @@ use cortex_m::delay::Delay;
 use defmt_rtt as _;
 use embedded_hal::digital::v2::InputPin;
 
-use rp2040_hal::gpio::bank0::Gpio16;
+use rp2040_hal::gpio::bank0::Gpio12;
 use rp2040_hal::pio::PIOExt;
 //#[cfg(debug_assertions)]
 //use panic_probe as _;
@@ -49,7 +49,7 @@ pub type Ws2812<'a> = ws2812_pio::Ws2812<
     crate::pac::PIO0,
     rp2040_hal::pio::SM0,
     rp2040_hal::timer::CountDown<'a>,
-    Gpio16,
+    Gpio12,
 >;
 
 use fl16_inputmodules::control::*;
@@ -130,7 +130,7 @@ fn main() -> ! {
 
     let (mut pio, sm0, _, _, _) = pac.PIO0.split(&mut pac.RESETS);
     let mut ws2812: Ws2812 = ws2812_pio::Ws2812::new(
-        pins.rgb_led.into_mode(),
+        pins.d12.into_mode(),
         &mut pio,
         sm0,
         clocks.peripheral_clock.freq(),
