@@ -147,7 +147,7 @@ fn main() -> ! {
     loop {
         // Go to sleep if the host is sleeping
         let host_sleeping = sleep.is_low().unwrap();
-        handle_sleep(host_sleeping, &mut state, &mut delay, &mut ws2812);
+        //handle_sleep(host_sleeping, &mut state, &mut delay, &mut ws2812);
 
         // Handle period LED updates. Don't do it too often or USB will get stuck
         if timer.get_counter().ticks() > prev_timer + 20_000 {
