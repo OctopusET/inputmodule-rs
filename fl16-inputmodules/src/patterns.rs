@@ -50,6 +50,37 @@ pub fn draw_grey_col(grid: &mut Grid, col: u8, levels: &[u8; HEIGHT]) {
     grid.0[8 - col as usize][..HEIGHT].copy_from_slice(&levels[..HEIGHT]);
 }
 
+pub fn display_sleep_reason(sleep_reason: SleepReason) -> Grid {
+    let mut grid = Grid::default();
+
+    match sleep_reason {
+        SleepReason::Command => {
+            display_letter(20, &mut grid, CAP_C);
+            display_letter(10, &mut grid, CAP_M);
+            display_letter(0, &mut grid, CAP_D);
+        }
+        SleepReason::SleepPin => {
+            display_letter(23, &mut grid, CAP_S);
+            display_letter(13, &mut grid, CAP_L);
+            display_letter(7, &mut grid, CAP_P);
+            display_letter(0, &mut grid, HASH);
+        }
+        SleepReason::Timeout => {
+            display_letter(24, &mut grid, CAP_T);
+            display_letter(16, &mut grid, CAP_I);
+            display_letter(8, &mut grid, CAP_M);
+            display_letter(0, &mut grid, CAP_E);
+        }
+        SleepReason::UsbSuspend => {
+            display_letter(17, &mut grid, CAP_U);
+            display_letter(10, &mut grid, CAP_S);
+            display_letter(0, &mut grid, CAP_B);
+        }
+    };
+
+    grid
+}
+
 pub fn display_sleep() -> Grid {
     Grid([
         [
@@ -325,6 +356,20 @@ pub fn zigzag() -> Grid {
 
     // Finish it off nicely
     grid.0[1][33] = 0xFF;
+
+    grid
+}
+
+pub fn every_nth_col(n: usize) -> Grid {
+    let mut grid = Grid::default();
+
+    for y in 0..HEIGHT {
+        for x in 0..WIDTH {
+            if x % n == 0 {
+                grid.0[x][y] = 0xFF;
+            }
+        }
+    }
 
     grid
 }

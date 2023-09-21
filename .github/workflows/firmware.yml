@@ -1,7 +1,19 @@
-name: Firmware CI Checks
+name: Firmware
 
 on:
-  push
+  push:
+    branches:
+      - master
+      - dev-*
+    paths-ignore:
+      - '*.py'
+      - 'inputmodule-control/**'
+  pull_request:
+    branches:
+      - '*'
+    paths-ignore:
+      - '*.py'
+      - 'inputmodule-control/**'
 
 env:
   CARGO_TERM_COLOR: always
@@ -17,74 +29,105 @@ jobs:
       - name: Setup Rust toolchain
         run: rustup show
 
+      - run: cargo install cargo-make
+
       - run: cargo install flip-link
-      - run: cargo build -p ledmatrix
-      - run: cargo build -p b1display
-      - run: cargo build -p c1minimal
-      - run: cargo build -p ledmatrix --release
-      - run: cargo build -p b1display --release
-      - run: cargo build -p c1minimal --release
+      - run: cargo make --cwd b1display
+      - run: cargo make --cwd c1minimal
+      - run: cargo make --cwd ledmatrix build-release
+      - run: cargo make --cwd ledmatrix build-release-10k
+      - run: cargo make --cwd ledmatrix build-release-evt
+      - run: cargo make --cwd b1display build-release
+      - run: cargo make --cwd c1minimal build-release
 
       - name: Convert to UF2 format
         run: |
             sudo apt-get update
             sudo apt-get install -y libudev-dev
-            cargo install elf2uf2-rs
-            elf2uf2-rs target/thumbv6m-none-eabi/release/b1display b1display.uf2
-            elf2uf2-rs target/thumbv6m-none-eabi/release/c1minimal c1minimal.uf2
-            elf2uf2-rs target/thumbv6m-none-eabi/release/ledmatrix ledmatrix.uf2
-
-      - name: Upload UF2 files
-        uses: actions/upload-artifact@v3
-        with:
-          name: inputmodule_fw_uf2
-          path: |
-            b1display.uf2
-            c1minimal.uf2
-            ledmatrix.uf2
+            cargo make --cwd b1display uf2
+            cargo make --cwd c1minimal uf2
+            cargo make --cwd ledmatrix build-release-10k-uf2
+            cargo make --cwd ledmatrix build-release-evt-uf2
+            cargo make --cwd ledmatrix uf2
 
       - name: Convert to bin format
         run: |
             sudo apt-get update
             sudo apt-get install -y llvm
-            llvm-objcopy -O binary target/thumbv6m-none-eabi/release/b1display b1display.bin
-            llvm-objcopy -O binary target/thumbv6m-none-eabi/release/c1minimal c1minimal.bin
-            llvm-objcopy -O binary target/thumbv6m-none-eabi/release/ledmatrix ledmatrix.bin
+            cargo make --cwd b1display bin
+            cargo make --cwd c1minimal bin
+            cargo make --cwd ledmatrix bin
 
-      - name: Upload bin files
+      - name: Upload ledmatrix files
         uses: actions/upload-artifact@v3
         with:
-          name: inputmodule_fw_bin
+          name: ledmatrix_fw_${{github.sha}}
           path: |
-            b1display.bin
-            c1minimal.bin
-            ledmatrix.bin
+            # Main firmware
+            target/thumbv6m-none-eabi/release/ledmatrix.bin
+            target/thumbv6m-none-eabi/release/ledmatrix.uf2
+            # EVT 10k resistor
+            target/thumbv6m-none-eabi/release/ledmatrix_10k.uf2
+            # EVT (27k) resistor
+            target/thumbv6m-none-eabi/release/ledmatrix_evt.uf2
+
+      - name: Upload b1display files
+        uses: actions/upload-artifact@v3
+        with:
+          name: b1display_fw_${{github.sha}}
+          path: |
+            target/thumbv6m-none-eabi/release/b1display.bin
+            target/thumbv6m-none-eabi/release/b1display.uf2
+
+      - name: Upload c1minimal files
+        uses: actions/upload-artifact@v3
+        with:
+          name: c1minimal_fw_${{github.sha}}
+          path: |
+            target/thumbv6m-none-eabi/release/c1minimal.bin
+            target/thumbv6m-none-eabi/release/c1minimal.uf2
 
   linting:
     name: Linting
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-        with:
-          submodules: true
 
       - name: Setup Rust toolchain
         run: rustup show
 
+      - run: cargo install cargo-make
+
       - run: |
-          cargo clippy -p b1display -- --deny=warnings
-          cargo clippy -p c1minimal -- --deny=warnings
-          cargo clippy -p ledmatrix -- --deny=warnings
+          sudo apt-get update
+          sudo apt-get install -y libudev-dev
+          cargo make clippy --cwd b1display
+          cargo make clippy --cwd c1minimal
+          cargo make clippy --cwd ledmatrix
+
+      # fl16-inputmodules/src/serialnum.rs
+      # is currently used by all firmwares to show their firmware version.
+      # But it shows the version of the fl16-inputmodules package.
+      # So that needs to be the same as the firmware version.
+      - name: Check versions of all packages are the same
+        run: |
+          cargo pkgid -p fl16-inputmodules | cut -d "#" -f2 >> versions.tmp
+          cargo pkgid -p b1display | cut -d "#" -f2 >> versions.tmp
+          cargo pkgid -p c1minimal | cut -d "#" -f2 >> versions.tmp
+          cargo pkgid -p ledmatrix | cut -d "#" -f2 >> versions.tmp
+          uniq -c versions.tmp | [ $(wc -l) -eq 1 ]
 
   formatting:
     name: Formatting
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-        with:
-          submodules: true
 
       - name: Setup Rust toolchain
         run: rustup show
 
-      - run: cargo fmt --all -- --check
+      - run: |
+          cargo fmt -p b1display -- --check
+          cargo fmt -p c1minimal -- --check
+          cargo fmt -p ledmatrix -- --check
+          cargo fmt -p fl16-inputmodules -- --check

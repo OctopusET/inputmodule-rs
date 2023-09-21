@@ -47,6 +47,8 @@ enum Command {
     Fps = 0x1A,
     PowerMode = 0x1B,
     AnimationPeriod = 0x1C,
+    PwmFreq = 0x1E,
+    DebugMode = 0x1F,
     Version = 0x20,
 }
 
@@ -221,6 +223,13 @@ pub fn serial_commands(args: &crate::ClapCli) {
                     animation_fps_cmd(serialdev, fps);
                 }
 
+                if let Some(freq) = ledmatrix_args.pwm_freq {
+                    pwm_freq_cmd(serialdev, freq);
+                }
+                if let Some(debug_mode) = ledmatrix_args.debug_mode {
+                    debug_mode_cmd(serialdev, debug_mode);
+                }
+
                 if ledmatrix_args.stop_game {
                     simple_cmd(
                         serialdev,
@@ -388,12 +397,17 @@ fn simple_cmd_multiple(serialdevs: &Vec<String>, command: Command, args: &[u8]) 
 }
 
 fn simple_cmd(serialdev: &str, command: Command, args: &[u8]) {
-    let mut port = serialport::new(serialdev, 115_200)
+    let port_result = serialport::new(serialdev, 115_200)
         .timeout(SERIAL_TIMEOUT)
-        .open()
-        .expect("Failed to open port");
+        .open();
 
-    simple_cmd_port(&mut port, command, args);
+    match port_result {
+        Ok(mut port) => simple_cmd_port(&mut port, command, args),
+        Err(error) => match error.kind {
+            serialport::ErrorKind::Io(std::io::ErrorKind::PermissionDenied) => panic!("Permission denied, couldn't access inputmodule serialport. Ensure that you have permission, for example using a udev rule or sudo."),
+            other_error => panic!("Couldn't open port: {:?}", other_error)
+        }
+    };
 }
 
 fn open_serialport(serialdev: &str) -> Box<dyn SerialPort> {
@@ -433,6 +447,26 @@ fn sleeping_cmd(serialdev: &str, arg: Option<bool>) {
 
         let sleeping: bool = response[0] == 1;
         println!("Currently sleeping: {sleeping}");
+    }
+}
+
+fn debug_mode_cmd(serialdev: &str, arg: Option<bool>) {
+    let mut port = serialport::new(serialdev, 115_200)
+        .timeout(SERIAL_TIMEOUT)
+        .open()
+        .expect("Failed to open port");
+
+    if let Some(enable_debug) = arg {
+        simple_cmd_port(&mut port, Command::DebugMode, &[u8::from(enable_debug)]);
+    } else {
+        simple_cmd_port(&mut port, Command::DebugMode, &[]);
+
+        let mut response: Vec<u8> = vec![0; 32];
+        port.read_exact(response.as_mut_slice())
+            .expect("Found no data!");
+
+        let debug_mode: bool = response[0] == 1;
+        println!("Debug Mode enabled: {debug_mode}");
     }
 }
 
@@ -975,9 +1009,41 @@ fn animation_fps_cmd(serialdev: &str, arg: Option<u16>) {
         port.read_exact(response.as_mut_slice())
             .expect("Found no data!");
 
-        println!("Response: {:X?}", response);
         let period = u16::from_le_bytes([response[0], response[1]]);
         println!("Animation Frequency: {}ms / {}Hz", period, 1_000 / period);
+    }
+}
+
+fn pwm_freq_cmd(serialdev: &str, arg: Option<u16>) {
+    let mut port = serialport::new(serialdev, 115_200)
+        .timeout(SERIAL_TIMEOUT)
+        .open()
+        .expect("Failed to open port");
+
+    if let Some(freq) = arg {
+        let hz = match freq {
+            29000 => 0,
+            3600 => 1,
+            1800 => 2,
+            900 => 3,
+            _ => panic!("Invalid frequency"),
+        };
+        simple_cmd_port(&mut port, Command::PwmFreq, &[hz]);
+    } else {
+        simple_cmd_port(&mut port, Command::PwmFreq, &[]);
+
+        let mut response: Vec<u8> = vec![0; 32];
+        port.read_exact(response.as_mut_slice())
+            .expect("Found no data!");
+
+        let hz = match response[0] {
+            0 => 29000,
+            1 => 3600,
+            2 => 1800,
+            3 => 900,
+            _ => panic!("Invalid frequency"),
+        };
+        println!("Animation Frequency: {}Hz", hz);
     }
 }
 

@@ -38,7 +38,15 @@ Optionally there are is also a [Python script](python.md).
 
 For device specific commands, see their individual documentation pages.
 
-Common commands:
+###### Permissions on Linux
+To ensure that the input module's port is accessible, install the `udev` rule and trigger a reload:
+
+```
+sudo cp release/50-framework-inputmodule.rules /etc/udev/rules.d/
+sudo udevadm control --reload && sudo udevadm trigger
+```
+
+##### Common commands:
 
 ###### Listing available devices
 
@@ -123,23 +131,22 @@ Prepare Rust toolchain (once):
 ```sh
 rustup target install thumbv6m-none-eabi
 cargo install flip-link
-cargo install elf2uf2-rs --locked
 ```
 
 Build:
 
 ```sh
-cargo build -p ledmatrix
-cargo build -p b1display
-cargo build -p c1minimal
+cargo make --cwd ledmatrix
+cargo make --cwd b1display
+cargo make --cwd c1minimal
 ```
 
 Generate the UF2 update file:
 
 ```sh
-elf2uf2-rs target/thumbv6m-none-eabi/debug/ledmatrix ledmatrix.uf2
-elf2uf2-rs target/thumbv6m-none-eabi/debug/b1display b1dipslay.uf2
-elf2uf2-rs target/thumbv6m-none-eabi/debug/c1minimal c1minimal.uf2
+cargo make --cwd ledmatrix uf2
+cargo make --cwd b1display uf2
+cargo make --cwd c1minimal uf2
 ```
 
 ## Building the Application
@@ -150,8 +157,11 @@ Currently have to specify the build target because it's not possible to specify 
 Tracking issue: https://github.com/rust-lang/cargo/issues/9406
 
 ```
-> cargo build --target x86_64-unknown-linux-gnu -p inputmodule-control
-> cargo run --target x86_64-unknown-linux-gnu -p inputmodule-control
+# Build it
+> cargo make --cwd inputmodule-control
+
+# Build and run it, showing the tool version
+> cargo make --cwd inputmodule-control run -- --version
 ```
 
 ### Check the firmware version of the device
